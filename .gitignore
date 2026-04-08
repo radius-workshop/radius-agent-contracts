@@ -1,0 +1,9 @@
+# Compiler output
+cache/
+out/
+
+# Environment
+.env
+
+# OS
+.DS_Store

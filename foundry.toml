@@ -1,0 +1,9 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+evm_version = "osaka"
+
+[rpc_endpoints]
+radius_testnet = "https://rpc.testnet.radiustech.xyz"
+radius_mainnet = "https://rpc.radiustech.xyz"
