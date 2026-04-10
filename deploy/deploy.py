@@ -5,6 +5,8 @@ Deploy agent contracts to Radius Testnet using radius-wallet-py.
 Usage:
     pip install eth-account httpx
     export RADIUS_PRIVATE_KEY=0x...
+    export PAYMENT_SPLITTER_PAYEES=0xYourAddress,0xCollaboratorAddress
+    export PAYMENT_SPLITTER_SHARES=70,30
     python deploy/deploy.py
 
 Requires compiled artifacts in out/ (run `forge build` first).
@@ -12,6 +14,7 @@ Requires compiled artifacts in out/ (run `forge build` first).
 
 import json
 import os
+import re
 import sys
 
 # Add parent dir so we can import radius_wallet if vendored alongside
@@ -55,8 +58,52 @@ def deploy(wallet: RadiusWallet, name: str, constructor_types=None, constructor_
     return result
 
 
+_ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
+
+
+def _required_env(name: str) -> str:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        raise ValueError(f"Missing {name}. Set it before running deploy.")
+    return value
+
+
+def _parse_payees() -> list[str]:
+    raw = _required_env("PAYMENT_SPLITTER_PAYEES")
+    payees = [p.strip() for p in raw.split(",") if p.strip()]
+    if not payees:
+        raise ValueError("PAYMENT_SPLITTER_PAYEES must contain at least one address.")
+    if len({p.lower() for p in payees}) != len(payees):
+        raise ValueError("PAYMENT_SPLITTER_PAYEES contains duplicate addresses.")
+    for payee in payees:
+        if not _ADDRESS_RE.match(payee):
+            raise ValueError(f"Invalid payee address: {payee}")
+    return payees
+
+
+def _parse_shares(expected_len: int) -> list[int]:
+    raw = _required_env("PAYMENT_SPLITTER_SHARES")
+    shares = []
+    for value in [v.strip() for v in raw.split(",") if v.strip()]:
+        if not value.isdigit():
+            raise ValueError(f"Invalid share value: {value}")
+        share = int(value)
+        if share <= 0:
+            raise ValueError("Shares must be positive integers.")
+        shares.append(share)
+
+    if len(shares) != expected_len:
+        raise ValueError(
+            "PAYMENT_SPLITTER_SHARES length must match PAYMENT_SPLITTER_PAYEES length."
+        )
+    return shares
+
+
 def main():
     wallet = RadiusWallet.from_env()
+    splitter_payees = _parse_payees()
+    splitter_shares = _parse_shares(len(splitter_payees))
+
     print(f"Deployer: {wallet.address}")
     print(f"SBC balance: {wallet.get_sbc_balance()} SBC")
     print(f"RUSD balance: {wallet.get_rusd_balance()} RUSD")
@@ -76,24 +123,21 @@ def main():
         constructor_args=[SBC_ADDRESS, 100_000],
     )
 
-    # Deploy PaymentSplitter (token + payees + shares)
-    # Example: 3 agents splitting revenue 50/30/20
-    # Replace these with real agent wallet addresses!
-    example_payees = [
-        wallet.address,  # Agent A (you) — 50%
-        "0x0000000000000000000000000000000000000001",  # Agent B — 30%
-        "0x0000000000000000000000000000000000000002",  # Agent C — 20%
-    ]
-    example_shares = [50, 30, 20]
+    # Deploy PaymentSplitter (token + payees + shares) using explicit env config.
     deploy(
         wallet,
         "PaymentSplitter",
         constructor_types=["address", "address[]", "uint256[]"],
-        constructor_args=[SBC_ADDRESS, example_payees, example_shares],
+        constructor_args=[SBC_ADDRESS, splitter_payees, splitter_shares],
     )
 
     print("\nDone! All contracts deployed to Radius Testnet.")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except ValueError as e:
+        print(f"Configuration error: {e}")
+        print("Set PAYMENT_SPLITTER_PAYEES and PAYMENT_SPLITTER_SHARES before deploy.")
+        sys.exit(1)

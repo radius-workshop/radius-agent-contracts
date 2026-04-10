@@ -62,6 +62,7 @@ contract AgentEscrow {
     ) external returns (uint256 id) {
         require(provider != address(0), "Invalid provider");
         require(amount > 0, "Amount must be > 0");
+        require(timeoutSeconds > 0, "Timeout must be > 0");
 
         id = nextId++;
         escrows[id] = Escrow({

@@ -56,6 +56,8 @@ forge create src/AgentEscrow.sol:AgentEscrow \
 pip install eth-account httpx
 # or: pip install git+https://github.com/radius-workshop/radius-wallet-py.git
 export RADIUS_PRIVATE_KEY=0x...
+export PAYMENT_SPLITTER_PAYEES=0xYourAddress,0xCollaboratorAddress
+export PAYMENT_SPLITTER_SHARES=70,30
 forge build
 python deploy/deploy.py
 ```
@@ -65,6 +67,8 @@ python deploy/deploy.py
 ```bash
 npm install viem
 export RADIUS_PRIVATE_KEY=0x...
+export PAYMENT_SPLITTER_PAYEES=0xYourAddress,0xCollaboratorAddress
+export PAYMENT_SPLITTER_SHARES=70,30
 forge build
 npx tsx deploy/deploy.ts
 ```

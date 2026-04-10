@@ -265,4 +265,12 @@ contract AgentEscrowTest is Test {
         );
     }
 
+    function test_createEscrowZeroTimeout() public {
+        vm.prank(buyer);
+        vm.expectRevert("Timeout must be > 0");
+        escrow.createEscrow(
+            provider, IERC20(address(token)), 10 * 10 ** 6, keccak256("task"), 0
+        );
+    }
+
 }

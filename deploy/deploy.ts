@@ -4,6 +4,8 @@
  * Usage:
  *   forge build
  *   export RADIUS_PRIVATE_KEY=0x...
+ *   export PAYMENT_SPLITTER_PAYEES=0xYourAddress,0xCollaboratorAddress
+ *   export PAYMENT_SPLITTER_SHARES=70,30
  *   npx tsx deploy/deploy.ts
  *
  * Requires compiled artifacts in out/ (run `forge build` first).
@@ -22,8 +24,9 @@ import {
   createWalletClient,
   http,
   defineChain,
-  formatUnits,
+  isAddress,
   type Abi,
+  type Address,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
@@ -31,7 +34,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 
 const SBC_ADDRESS = "0x33ad9e4BD16B69B5BFdED37D8B5D9fF9aba014Fb";
-const SBC_DECIMALS = 6;
 
 const radiusTestnet = defineChain({
   id: 72344,
@@ -62,6 +64,60 @@ const walletClient = createWalletClient({
   chain: radiusTestnet,
   transport,
 });
+
+function requiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value || value.trim() === "") {
+    throw new Error(`Missing ${name}. Set it before running deploy.`);
+  }
+  return value.trim();
+}
+
+function parsePayees(name: string): Address[] {
+  const raw = requiredEnv(name);
+  const payees = raw
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+
+  if (payees.length === 0) {
+    throw new Error(`${name} must contain at least one address.`);
+  }
+  if (new Set(payees.map((p) => p.toLowerCase())).size !== payees.length) {
+    throw new Error(`${name} contains duplicate addresses.`);
+  }
+  for (const payee of payees) {
+    if (!isAddress(payee)) {
+      throw new Error(`Invalid payee address in ${name}: ${payee}`);
+    }
+  }
+  return payees as Address[];
+}
+
+function parseShares(name: string, expectedLength: number): bigint[] {
+  const raw = requiredEnv(name);
+  const shares = raw
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean)
+    .map((v) => {
+      if (!/^\d+$/.test(v)) {
+        throw new Error(`Invalid share in ${name}: ${v}`);
+      }
+      const share = BigInt(v);
+      if (share <= 0n) {
+        throw new Error(`Shares in ${name} must be positive integers.`);
+      }
+      return share;
+    });
+
+  if (shares.length !== expectedLength) {
+    throw new Error(
+      `${name} length (${shares.length}) must match PAYMENT_SPLITTER_PAYEES length (${expectedLength}).`
+    );
+  }
+  return shares;
+}
 
 function loadArtifact(name: string) {
   const path = join(ROOT, "out", `${name}.sol`, `${name}.json`);
@@ -96,6 +152,8 @@ async function deploy(name: string, args?: unknown[]) {
 
 async function main() {
   console.log(`Deployer: ${account.address}`);
+  const splitterPayees = parsePayees("PAYMENT_SPLITTER_PAYEES");
+  const splitterShares = parseShares("PAYMENT_SPLITTER_SHARES", splitterPayees.length);
 
   // Deploy AgentEscrow
   await deploy("AgentEscrow");
@@ -106,15 +164,11 @@ async function main() {
   // Deploy PayPerQuery (token, pricePerQuery)
   await deploy("PayPerQuery", [SBC_ADDRESS, 100_000n]);
 
-  // Deploy PaymentSplitter (token, payees, shares)
+  // Deploy PaymentSplitter (token, payees, shares) using explicit env config.
   await deploy("PaymentSplitter", [
     SBC_ADDRESS,
-    [
-      account.address,
-      "0x0000000000000000000000000000000000000001",
-      "0x0000000000000000000000000000000000000002",
-    ],
-    [50n, 30n, 20n],
+    splitterPayees,
+    splitterShares,
   ]);
 
   console.log("\nDone! All contracts deployed to Radius Testnet.");
