@@ -153,3 +153,7 @@ cast send 0x33ad9e4BD16B69B5BFdED37D8B5D9fF9aba014Fb \
 - **[radius-wallet-py](https://github.com/radius-workshop/radius-wallet-py)** — Python wallet library
 - **[radius-wallet-ts](https://github.com/radius-workshop/radius-wallet-ts)** — TypeScript wallet library
 - **[radius-agent-template](https://github.com/radius-workshop/radius-agent-template)** — Minimal NEST payment agent
+
+---
+
+> ⚠️ **Demo code — not production-ready.** Provided as-is, without warranty, and may contain known, unpatched vulnerabilities (including in dependencies). If you reuse it, run your own security and supply-chain scans and patch before deploying.
